@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rappi GeoLayers — Bogotá</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#f5f5f3;--surface:#fff;--surface2:#f9f9f8;--surface3:#f0f0ee;
+    --border:#e5e5e2;--border2:#d0d0cc;
+    --text:#1a1a1a;--text2:#666660;--text3:#aaaaaa;
+    --accent:#e5322d;--blue:#2563eb;--green:#16a34a;--amber:#d97706;--purple:#7c3aed;
+  }
+  html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'IBM Plex Sans',sans-serif;color:var(--text)}
+  #app{display:flex;height:100vh}
+
+  /* SIDEBAR */
+  #sidebar{width:292px;min-width:292px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:1000;overflow:hidden}
+  #sidebar-header{padding:16px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+  .logo{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+  .logo-dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .logo-text{font-size:12px;font-weight:600;letter-spacing:.1em}
+  .logo-sub{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-left:15px}
+  .section{padding:13px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+  .section-label{font-size:9px;font-weight:600;letter-spacing:.14em;color:var(--text3);text-transform:uppercase;margin-bottom:10px}
+  .brush-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .brush-num{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;min-width:22px}
+  .brush-info{font-size:11px;color:var(--text2);flex:1}
+  .brush-detail{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:1px}
+  .base-res-info{display:flex;align-items:flex-start;gap:6px;padding:7px 10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin-top:8px}
+  .base-res-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);flex-shrink:0;margin-top:3px}
+  .base-res-text{font-size:10px;color:#92400e;line-height:1.5}
+  input[type=range]{width:100%;height:3px;-webkit-appearance:none;background:var(--border);border-radius:2px;outline:none;cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid white;box-shadow:0 0 0 1px var(--accent)}
+  .mode-group{display:flex;gap:3px}
+  .mode-btn{flex:1;padding:7px 2px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text2);font-size:10px;font-weight:500;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:all .12s;text-align:center;white-space:nowrap}
+  .mode-btn:hover{border-color:var(--border2);color:var(--text)}
+  .mode-btn.active-paint {background:white;border-color:#e5322d;color:#e5322d}
+  .mode-btn.active-erase {background:white;border-color:#d97706;color:#d97706}
+  .mode-btn.active-edit  {background:white;border-color:#7c3aed;color:#7c3aed}
+  .mode-btn.active-inspect{background:white;border-color:#2563eb;color:#2563eb}
+  #scroll-area{flex:1;overflow-y:auto;min-height:0}
+  .panel-section{padding:13px 18px;border-bottom:1px solid var(--border)}
+
+  /* LAYERS */
+  .layer-block{margin-bottom:8px}
+  .layer-item{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:border-color .12s,background .12s;position:relative;background:var(--surface2)}
+  .layer-item:hover{border-color:var(--border2)}
+  .layer-item.active{border-color:var(--layer-color,#e5322d);background:white}
+  .layer-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2.5px;border-radius:6px 0 0 6px;background:var(--layer-color,#e5322d)}
+  .layer-item.hidden-layer{opacity:.45}
+  .layer-swatch{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+  .layer-name{font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .layer-count{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0}
+  .layer-actions{display:flex;gap:2px;flex-shrink:0}
+  .layer-btn{width:20px;height:20px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;border-radius:3px;display:flex;align-items:center;justify-content:center;transition:all .1s}
+  .layer-btn:hover{background:var(--surface3);color:var(--text)}
+  .layer-btn.danger:hover{background:#fef2f2;color:var(--accent)}
+  .vis-badge{font-size:9px;font-weight:600;letter-spacing:.06em;padding:2px 5px;border-radius:3px;flex-shrink:0;cursor:pointer;transition:all .12s}
+  .vis-badge.on{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
+  .vis-badge.off{background:var(--surface3);color:var(--text3);border:1px solid var(--border)}
+  .vis-badge:hover{opacity:.75}
+
+  /* GROUPS */
+  .groups-area{padding:4px 0 2px 14px;display:flex;flex-direction:column;gap:3px}
+  .group-item{display:flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2)}
+  .group-item.hidden-group{opacity:.4}
+  .group-item.editing-group{border-color:var(--purple);background:#faf5ff}
+  .group-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  .group-name{font-size:11px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .group-id{font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0}
+  .group-cells{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0}
+  .group-btn{width:17px;height:17px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;border-radius:3px;display:flex;align-items:center;justify-content:center;transition:all .1s}
+  .group-btn:hover{background:var(--surface3);color:var(--text)}
+  .group-btn.danger:hover{background:#fef2f2;color:var(--accent)}
+  .group-btn.edit-active{color:var(--purple);background:#f3e8ff}
+
+  /* EDIT MODE BANNER */
+  #edit-banner{display:none;background:#faf5ff;border:1px solid #d8b4fe;border-radius:7px;padding:9px 12px;margin:0 18px 10px;font-size:11px;color:#6b21a8;line-height:1.5}
+  #edit-banner.visible{display:block}
+  #edit-banner strong{font-weight:600}
+  #edit-banner-name{font-weight:600;color:#7c3aed}
+
+  #save-group-btn{width:100%;padding:6px 8px;background:none;border:1px solid var(--border2);border-radius:5px;color:var(--text2);font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:all .12s;margin-top:6px}
+  #save-group-btn:hover:not(:disabled){border-color:var(--green);color:var(--green);background:#f0fdf4}
+  #save-group-btn:disabled{opacity:.35;cursor:not-allowed}
+  #add-layer-btn{width:100%;padding:7px;background:none;border:1px dashed var(--border2);border-radius:6px;color:var(--text3);font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:all .12s;margin-top:8px}
+  #add-layer-btn:hover{border-color:var(--blue);color:var(--blue)}
+
+  .stat-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+  .stat-label{font-size:11px;color:var(--text3)}
+  .stat-val{font-size:11px;font-weight:500;font-family:'IBM Plex Mono',monospace;color:var(--text)}
+  #sidebar-bottom{padding:13px 18px;border-top:1px solid var(--border);flex-shrink:0}
+  .clear-btn{width:100%;padding:7px;background:none;border:1px solid #fca5a5;border-radius:6px;color:var(--accent);font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;transition:background .12s}
+  .clear-btn:hover{background:#fef2f2}
+
+  /* MAP */
+  #map{flex:1;position:relative}
+  #map.mode-paint  {cursor:crosshair}
+  #map.mode-erase  {cursor:cell}
+  #map.mode-edit   {cursor:copy}
+  #map.mode-inspect{cursor:default}
+  .leaflet-control-zoom{display:none}
+  .leaflet-attribution-flag{display:none!important}
+  .leaflet-control-attribution{font-size:9px!important}
+
+  /* SELECTION BAR */
+  #sel-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:white;border:1px solid var(--border);border-radius:8px;padding:8px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 12px rgba(0,0,0,.1);z-index:400;font-size:12px;color:var(--text2);opacity:0;transition:opacity .15s;pointer-events:none;white-space:nowrap}
+  #sel-bar.visible{opacity:1;pointer-events:all}
+  #sel-count{font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--text)}
+  #sel-save-btn{padding:5px 12px;background:var(--green);color:white;border:none;border-radius:5px;font-size:11px;font-weight:500;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  #sel-save-btn:hover{opacity:.85}
+  #sel-clear-btn{padding:5px 10px;background:none;color:var(--text3);border:1px solid var(--border);border-radius:5px;font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  #sel-clear-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* EDIT BAR — shown when editing a group */
+  #edit-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:white;border:1px solid #d8b4fe;border-radius:8px;padding:8px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 12px rgba(0,0,0,.1);z-index:400;font-size:12px;color:var(--text2);opacity:0;transition:opacity .15s;pointer-events:none;white-space:nowrap}
+  #edit-bar.visible{opacity:1;pointer-events:all}
+  #edit-bar-name{font-weight:600;color:var(--purple);max-width:120px;overflow:hidden;text-overflow:ellipsis}
+  #edit-done-btn{padding:5px 12px;background:var(--purple);color:white;border:none;border-radius:5px;font-size:11px;font-weight:500;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  #edit-done-btn:hover{opacity:.85}
+  #edit-discard-btn{padding:5px 10px;background:none;color:var(--text3);border:1px solid var(--border);border-radius:5px;font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif}
+  #edit-discard-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* INSPECT POPUP */
+  #inspect-popup{position:fixed;bottom:20px;right:20px;background:white;border:1px solid var(--border);border-radius:10px;padding:14px 16px;min-width:220px;max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.1);z-index:500;opacity:0;transition:opacity .15s;pointer-events:none}
+  #inspect-popup.visible{opacity:1;pointer-events:all}
+  .ip-group-name{font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px}
+  .ip-layer-name{font-size:11px;color:var(--text2);margin-bottom:10px}
+  .ip-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+  .ip-label{font-size:10px;color:var(--text3)}
+  .ip-val{font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--text)}
+  .ip-divider{border:none;border-top:1px solid var(--border);margin:8px 0}
+  .ip-id{font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;word-break:break-all}
+  .ip-no-group{font-size:12px;color:var(--text3);font-style:italic}
+  .ip-close{position:absolute;top:10px;right:10px;width:18px;height:18px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:3px;display:flex;align-items:center;justify-content:center}
+  .ip-close:hover{background:var(--surface3);color:var(--text)}
+
+  /* TOASTS */
+  .toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);border-radius:7px;padding:8px 16px;font-size:11px;z-index:600;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  #overlap-toast{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412}
+  #contiguity-toast{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+  .toast.visible{opacity:1}
+
+  /* MODALS */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.2);z-index:2000;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal-box{background:white;border:1px solid var(--border);border-radius:10px;padding:20px;width:260px;box-shadow:0 8px 32px rgba(0,0,0,.1)}
+  .modal-title{font-size:13px;font-weight:600;margin-bottom:14px}
+  .modal-field{margin-bottom:12px}
+  .modal-field label{font-size:11px;color:var(--text2);display:block;margin-bottom:5px}
+  .modal-field input[type=text]{width:100%;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;font-family:'IBM Plex Sans',sans-serif;outline:none}
+  .modal-field input[type=text]:focus{border-color:var(--blue)}
+  .modal-hint{font-size:10px;color:var(--text3);margin-top:4px;font-family:'IBM Plex Mono',monospace;line-height:1.5}
+  .color-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+  .color-opt{width:32px;height:32px;border-radius:5px;border:2px solid transparent;cursor:pointer;transition:border-color .1s}
+  .color-opt.selected{border-color:#1a1a1a}
+  .modal-actions{display:flex;gap:7px;margin-top:14px}
+  .modal-btn{flex:1;padding:8px;border-radius:5px;font-size:12px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;font-weight:500;border:none}
+  .modal-btn.primary{background:var(--blue);color:white}
+  .modal-btn.primary.green{background:var(--green)}
+  .modal-btn.primary.purple{background:var(--purple)}
+  .modal-btn.secondary{background:var(--surface3);color:var(--text2);border:1px solid var(--border)}
+
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:10px}
+  #loading-text{font-size:12px;color:var(--text3);font-family:'IBM Plex Mono',monospace}
+  #loading-error{font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace;display:none;max-width:360px;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="loading">
+  <div style="width:7px;height:7px;border-radius:50%;background:#e5322d"></div>
+  <div id="loading-text">cargando mapa...</div>
+  <div id="loading-error"></div>
+</div>
+
+<div id="app" style="display:none">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <div class="logo"><div class="logo-dot"></div><span class="logo-text">RAPPI GEOLAYERS</span></div>
+      <div class="logo-sub">bogotá · H3 res-9 base</div>
+    </div>
+    <div class="section">
+      <div class="section-label">Modo</div>
+      <div class="mode-group">
+        <button class="mode-btn active-paint" id="mode-paint"   onclick="setMode('paint')">✦ Pintar</button>
+        <button class="mode-btn"              id="mode-erase"   onclick="setMode('erase')">◌ Borrar</button>
+        <button class="mode-btn"              id="mode-edit"    onclick="setMode('edit')">✎ Editar</button>
+        <button class="mode-btn"              id="mode-inspect" onclick="setMode('inspect')">◎ Ver</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Tamaño de Pincel</div>
+      <div class="brush-row">
+        <div class="brush-num" id="brush-display">7</div>
+        <div style="flex:1">
+          <div class="brush-info" id="brush-label">Pincel mediano</div>
+          <div class="brush-detail" id="brush-detail">~36 tokens por click</div>
+        </div>
+      </div>
+      <input type="range" min="5" max="9" value="7" id="brush-slider" oninput="onBrushChange(this.value)">
+      <div style="display:flex;justify-content:space-between;margin-top:5px">
+        <span style="font-size:9px;color:var(--text3)">← Grande</span>
+        <span style="font-size:9px;color:var(--text3)">Puntual →</span>
+      </div>
+      <div class="base-res-info">
+        <div class="base-res-dot"></div>
+        <div class="base-res-text">Grilla base <strong>res 9</strong>. El pincel se expande a hijos res-9 — sin solapamientos posibles.</div>
+      </div>
+    </div>
+
+    <div id="scroll-area">
+      <div id="edit-banner"></div>
+      <div class="panel-section">
+        <div class="section-label">Capas</div>
+        <div id="layers-list"></div>
+        <button id="add-layer-btn" onclick="openLayerModal()">+ Nueva capa</button>
+      </div>
+      <div class="panel-section">
+        <div class="section-label">Estadísticas</div>
+        <div class="stat-row"><span class="stat-label">Tokens base (res 9)</span><span class="stat-val" id="stat-total">0</span></div>
+        <div class="stat-row"><span class="stat-label">Grupos guardados</span><span class="stat-val" id="stat-groups">0</span></div>
+        <div class="stat-row"><span class="stat-label">Capa activa</span><span class="stat-val" id="stat-layer">—</span></div>
+        <div class="stat-row"><span class="stat-label">Pincel</span><span class="stat-val" id="stat-brush">res 7</span></div>
+      </div>
+    </div>
+    <div id="sidebar-bottom">
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button onclick="exportJSON()" style="flex:1;padding:7px;background:none;border:1px solid #bfdbfe;border-radius:6px;color:#1d4ed8;font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">↓ JSON</button>
+        <button onclick="exportGeoJSON()" style="flex:1;padding:7px;background:none;border:1px solid #bbf7d0;border-radius:6px;color:#15803d;font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">↓ GeoJSON</button>
+      </div>
+      <button class="clear-btn" onclick="clearActiveLayer()">Limpiar capa activa</button>
+    </div>
+  </div>
+  <div id="map" class="mode-paint"></div>
+</div>
+
+<!-- SELECTION BAR (new group) -->
+<div id="sel-bar">
+  <span id="sel-count">0</span>
+  <span style="color:var(--text3)">tokens seleccionados</span>
+  <button id="sel-save-btn" onclick="openGroupModal()">Guardar grupo</button>
+  <button id="sel-clear-btn" onclick="clearSelection()">Limpiar</button>
+</div>
+
+<!-- EDIT BAR (editing existing group) -->
+<div id="edit-bar">
+  <span style="color:var(--text3);font-size:11px">Editando:</span>
+  <span id="edit-bar-name"></span>
+  <span id="edit-delta" style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace"></span>
+  <button id="edit-done-btn"    onclick="commitGroupEdit()">Guardar cambios</button>
+  <button id="edit-discard-btn" onclick="discardGroupEdit()">Cancelar</button>
+</div>
+
+<!-- INSPECT POPUP -->
+<div id="inspect-popup">
+  <button class="ip-close" onclick="closeInspect()">✕</button>
+  <div id="ip-content"></div>
+</div>
+
+<div id="overlap-toast"     class="toast"></div>
+<div id="contiguity-toast"  class="toast"></div>
+<div id="success-toast" class="toast" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d"></div>
+
+<!-- LAYER MODAL -->
+<div class="modal-overlay" id="layer-modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">Nueva capa</div>
+    <div class="modal-field"><label>Nombre</label><input type="text" id="new-layer-name" placeholder="ej. Turbo, Earnings..."/></div>
+    <div class="modal-field"><label>Color</label><div class="color-grid" id="color-grid"></div></div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeLayerModal()">Cancelar</button>
+      <button class="modal-btn primary"   onclick="confirmNewLayer()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- GROUP MODAL (new) -->
+<div class="modal-overlay" id="group-modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">Guardar grupo</div>
+    <div class="modal-field"><label>Nombre del grupo</label><input type="text" id="new-group-name" placeholder="ej. Chapinero, Norte..."/></div>
+    <div class="modal-field"><label>ID único</label><input type="text" id="new-group-id" placeholder="ej. BOG-001"/><div class="modal-hint" id="group-cell-count"></div></div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary"     onclick="closeGroupModal()">Cancelar</button>
+      <button class="modal-btn primary green" onclick="confirmSaveGroup()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- RENAME MODAL -->
+<div class="modal-overlay" id="rename-modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title">Renombrar grupo</div>
+    <div class="modal-field"><label>Nombre</label><input type="text" id="rename-group-name"/></div>
+    <div class="modal-field"><label>ID</label><input type="text" id="rename-group-id"/></div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary"      onclick="closeRenameModal()">Cancelar</button>
+      <button class="modal-btn primary purple" onclick="confirmRename()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function loadScript(src,cb,errCb){
+  var s=document.createElement('script');s.src=src;s.onload=cb;
+  s.onerror=errCb||function(){
+    document.getElementById('loading-error').style.display='block';
+    document.getElementById('loading-error').textContent='No se pudo cargar: '+src;
+    document.getElementById('loading-text').textContent='error de red';
+  };document.head.appendChild(s);
+}
+loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',function(){
+  loadScript('https://cdn.jsdelivr.net/npm/h3-js@4.1.0/dist/h3-js.umd.js',
+    function(){startApp();},
+    function(){
+      var s=document.createElement('script');s.type='module';
+      s.textContent='import * as h3lib from "https://esm.sh/h3-js@4.1.0";window.h3=h3lib;window.startApp();';
+      document.head.appendChild(s);
+    }
+  );
+});
+
+window.startApp=function(){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('app').style.display='flex';
+
+  var BASE_RES=9;
+  var BRUSH_META={
+    5:{label:'Pincel XL',     detail:'~1,680 tokens por click'},
+    6:{label:'Pincel grande', detail:'~240 tokens por click'},
+    7:{label:'Pincel mediano',detail:'~36 tokens por click'},
+    8:{label:'Pincel fino',   detail:'~6 tokens por click'},
+    9:{label:'Puntual',       detail:'1 token por click'}
+  };
+  var LAYER_COLORS=['#d45f5f','#5580c8','#4fa882','#c47e2e','#8a6bbf','#b85c8a','#3e8f76','#b06840','#5a8fad','#7a9e40'];
+
+  var state={
+    brushRes:7, mode:'paint',
+    activeLayerId:null, layers:[],
+    painting:false,
+    selection:new Set(),     // tokens for new group
+    editingGroup:null,       // {layerId, groupId, originalCells:Set, addedCells:Set, removedCells:Set}
+  };
+
+  var layerPolygons={};  // layerId -> {idx->poly}
+  var selPolygons={};    // idx->poly (new-group selection highlight)
+  var editPolygons={};   // idx->poly (edit-mode highlight: green=add, red=remove)
+  var groupBorders={};   // layerId -> groupId -> [L.layer]
+
+  // ── MAP ──────────────────────────────────────────────────────────────────
+  var map=L.map('map',{center:[4.711,-74.0721],zoom:12,zoomControl:false});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+  var mapEl=document.getElementById('map');
+
+  mapEl.addEventListener('mousedown',function(e){
+    if(e.button!==0)return;
+    if(state.mode==='inspect')return;
+    state.painting=true;map.dragging.disable();
+  });
+  document.addEventListener('mouseup',function(){state.painting=false;map.dragging.enable();});
+  map.on('mousedown',function(e){if(e.originalEvent.button!==0)return;handleClick(e.latlng);});
+  map.on('mousemove',function(e){if(state.painting)handleClick(e.latlng);});
+
+  // ── BASE CELLS ────────────────────────────────────────────────────────────
+  function getBaseCells(latlng){
+    var brushCell=h3.latLngToCell(latlng.lat,latlng.lng,state.brushRes);
+    return state.brushRes===BASE_RES?[brushCell]:h3.cellToChildren(brushCell,BASE_RES);
+  }
+
+  // ── CLICK HANDLER ─────────────────────────────────────────────────────────
+  function handleClick(latlng){
+    if(state.mode==='inspect'){handleInspect(latlng);return;}
+    if(state.mode==='edit'){handleEditClick(latlng);return;}
+    if(!state.activeLayerId)return;
+    var layer=getLayer(state.activeLayerId);if(!layer)return;
+    var cells=getBaseCells(latlng);
+    var blocked=0;
+    cells.forEach(function(idx){
+      if(state.mode==='paint'){
+        if(isInAnyGroup(idx,layer)){blocked++;return;}
+        if(!layer.cells.has(idx)){layer.cells.add(idx);drawLayerCell(idx,layer);}
+        if(!state.selection.has(idx)){state.selection.add(idx);drawSelCell(idx,layer.color);}
+      } else {
+        if(isInAnyGroup(idx,layer)){blocked++;return;}
+        if(layer.cells.has(idx)){layer.cells.delete(idx);eraseLayerCell(idx,layer);}
+        if(state.selection.has(idx)){state.selection.delete(idx);eraseSelCell(idx);}
+      }
+    });
+    if(blocked>0){
+      var msg=state.mode==='paint'
+        ? blocked+' token'+(blocked>1?'s ya pertenecen':' ya pertenece')+' a un grupo de esta capa — usa ✎ Editar para modificarlos'
+        : blocked+' token'+(blocked>1?'s pertenecen':' pertenece')+' a un grupo guardado — usa ✎ Editar para modificarlos';
+      showToast('overlap',msg);
+    }
+    updateStats();updateSelBar();
+  }
+
+  // ── EDIT MODE CLICK ───────────────────────────────────────────────────────
+  function handleEditClick(latlng){
+    if(!state.editingGroup)return;
+    var eg=state.editingGroup;
+    var layer=getLayer(eg.layerId);if(!layer)return;
+    var cells=getBaseCells(latlng);
+
+    cells.forEach(function(idx){
+      var inGroup=eg.currentCells.has(idx);
+      if(state.painting===false&&state.mode==='edit'){
+        // single click: toggle
+      }
+      if(!inGroup){
+        // ADD: token not in group yet — check it belongs to layer and not another group
+        if(!layer.cells.has(idx)){layer.cells.add(idx);drawLayerCell(idx,layer);}
+        // Check other groups don't own it
+        var otherOwner=false;
+        layer.groups.forEach(function(g){if(g.id!==eg.groupId&&g.cells.has(idx))otherOwner=true;});
+        if(otherOwner){showToast('overlap','Token ya pertenece a otro grupo');return;}
+        eg.currentCells.add(idx);
+        eg.addedCells.add(idx);
+        eg.removedCells.delete(idx);
+        drawEditCell(idx,'add');
+      } else {
+        // REMOVE: token already in group
+        eg.currentCells.delete(idx);
+        eg.removedCells.add(idx);
+        eg.addedCells.delete(idx);
+        drawEditCell(idx,'remove');
+      }
+    });
+    updateEditBar();
+    updateEditBorder();
+  }
+
+  function drawEditCell(idx,type){
+    if(editPolygons[idx])map.removeLayer(editPolygons[idx]);
+    if(type==='done'){delete editPolygons[idx];return;}
+    var color=type==='add'?'#16a34a':'#e5322d';
+    var poly=makePoly(idx,color,0.45,2,0.9);
+    poly.addTo(map);
+    editPolygons[idx]=poly;
+  }
+
+  function clearEditPolygons(){
+    Object.keys(editPolygons).forEach(function(idx){map.removeLayer(editPolygons[idx]);});
+    editPolygons={};
+  }
+
+  function updateEditBorder(){
+    if(!state.editingGroup)return;
+    var eg=state.editingGroup;
+    var layer=getLayer(eg.layerId);if(!layer)return;
+    var grp=layer.groups.find(function(g){return g.id===eg.groupId;});if(!grp)return;
+    // temporarily show border of currentCells
+    var tempGrp={id:grp.id,name:grp.name,cells:eg.currentCells,visible:true};
+    drawGroupBorder(layer,tempGrp,true);
+  }
+
+  // ── CONTIGUITY CHECK ─────────────────────────────────────────────────────
+  // BFS to check if all cells in a set form a single connected component
+  function isContiguous(cellSet){
+    if(cellSet.size<=1)return true;
+    var arr=Array.from(cellSet);
+    var visited=new Set();
+    var queue=[arr[0]];
+    visited.add(arr[0]);
+    while(queue.length>0){
+      var cur=queue.shift();
+      var neighbors=h3.gridDisk(cur,1).filter(function(n){return n!==cur;});
+      neighbors.forEach(function(nb){
+        if(cellSet.has(nb)&&!visited.has(nb)){visited.add(nb);queue.push(nb);}
+      });
+    }
+    return visited.size===cellSet.size;
+  }
+
+  // ── SAVE GROUP ────────────────────────────────────────────────────────────
+  function saveGroup(name,gid){
+    var layer=getLayer(state.activeLayerId);
+    if(!layer||state.selection.size===0)return;
+    if(!isContiguous(state.selection)){
+      showToast('contiguity','El grupo tiene zonas aisladas — todos los tokens deben ser vecinos');
+      return false;
+    }
+    var cells=new Set(state.selection);
+    var group={id:gid,name:name,cells:cells,visible:true};
+    layer.groups.push(group);
+    // Make grouped cells slightly more opaque
+    cells.forEach(function(idx){
+      if(layerPolygons[layer.id]&&layerPolygons[layer.id][idx]){
+        map.removeLayer(layerPolygons[layer.id][idx]);delete layerPolygons[layer.id][idx];
+      }
+      if(layer.visible&&group.visible){
+        var poly=makePoly(idx,layer.color,0.28,0.4,0.4);
+        poly.addTo(map);layerPolygons[layer.id][idx]=poly;
+      }
+    });
+    drawGroupBorder(layer,group,false);
+    clearSelection();renderLayers();updateStats();
+    return true;
+  }
+
+  // ── EDIT GROUP ────────────────────────────────────────────────────────────
+  window.startEditGroup=function(layerId,groupId){
+    // Exit any current edit first
+    if(state.editingGroup)discardGroupEdit();
+    clearSelection();
+    var layer=getLayer(layerId);if(!layer)return;
+    var grp=layer.groups.find(function(g){return g.id===groupId;});if(!grp)return;
+    setMode('edit');
+    state.editingGroup={
+      layerId:layerId,
+      groupId:groupId,
+      originalCells:new Set(grp.cells),
+      currentCells:new Set(grp.cells),
+      addedCells:new Set(),
+      removedCells:new Set()
+    };
+    // Highlight current cells
+    grp.cells.forEach(function(idx){drawEditCell(idx,'add');});
+    updateEditBar();
+    renderLayers();
+  };
+
+  window.commitGroupEdit=function(){
+    if(!state.editingGroup)return;
+    var eg=state.editingGroup;
+    if(eg.currentCells.size===0){
+      showToast('contiguity','El grupo no puede quedar vacío');return;
+    }
+    if(!isContiguous(eg.currentCells)){
+      showToast('contiguity','El grupo resultante tiene zonas aisladas — ajusta los tokens');return;
+    }
+    var layer=getLayer(eg.layerId);if(!layer)return;
+    var grp=layer.groups.find(function(g){return g.id===eg.groupId;});if(!grp)return;
+
+    // Update cells
+    grp.cells=new Set(eg.currentCells);
+
+    // Sync layer.cells: added cells need to be in layer.cells; removed ones stay (they're still painted)
+    eg.addedCells.forEach(function(idx){
+      if(!layer.cells.has(idx)){layer.cells.add(idx);drawLayerCell(idx,layer);}
+    });
+
+    // Refresh polygon opacity for all group cells
+    grp.cells.forEach(function(idx){
+      if(layerPolygons[layer.id]&&layerPolygons[layer.id][idx]){
+        map.removeLayer(layerPolygons[layer.id][idx]);delete layerPolygons[layer.id][idx];
+      }
+      if(layer.visible&&grp.visible){
+        var poly=makePoly(idx,layer.color,0.28,0.4,0.4);
+        poly.addTo(map);layerPolygons[layer.id][idx]=poly;
+      }
+    });
+    // Removed cells go back to light fill
+    eg.removedCells.forEach(function(idx){
+      if(!isInAnyGroup(idx,layer)){
+        if(layerPolygons[layer.id]&&layerPolygons[layer.id][idx]){
+          map.removeLayer(layerPolygons[layer.id][idx]);delete layerPolygons[layer.id][idx];
+        }
+        if(layer.cells.has(idx)&&layer.visible){
+          var poly=makePoly(idx,layer.color,0.18,0.3,0.3);
+          poly.addTo(map);layerPolygons[layer.id][idx]=poly;
+        }
+      }
+    });
+
+    drawGroupBorder(layer,grp,false);
+    clearEditPolygons();
+    state.editingGroup=null;
+    setMode('paint');
+    renderLayers();updateStats();
+  };
+
+  window.discardGroupEdit=function(){
+    if(!state.editingGroup)return;
+    clearEditPolygons();
+    state.editingGroup=null;
+    // Redraw original borders
+    var layer=getLayer(state.activeLayerId);
+    if(layer)layer.groups.forEach(function(g){drawGroupBorder(layer,g,false);});
+    setMode('paint');renderLayers();
+  };
+
+  function updateEditBar(){
+    if(!state.editingGroup){document.getElementById('edit-bar').classList.remove('visible');return;}
+    var eg=state.editingGroup;
+    var layer=getLayer(eg.layerId);
+    var grp=layer?layer.groups.find(function(g){return g.id===eg.groupId;}):null;
+    document.getElementById('edit-bar').classList.add('visible');
+    document.getElementById('edit-bar-name').textContent=grp?grp.name:eg.groupId;
+    var added=eg.addedCells.size, removed=eg.removedCells.size;
+    var parts=[];
+    if(added>0)parts.push('+'+added);
+    if(removed>0)parts.push('-'+removed);
+    document.getElementById('edit-delta').textContent=parts.length?'('+parts.join(' ')+')':'';
+    // Also update sidebar banner
+    var banner=document.getElementById('edit-banner');
+    banner.className='visible';
+    banner.innerHTML='<strong>Modo edición:</strong> <span id="edit-banner-name">'+(grp?esc(grp.name):eg.groupId)+'</span><br>Click para <span style="color:#16a34a">agregar</span> tokens · click en tokens del grupo para <span style="color:#e5322d">quitarlos</span>';
+  }
+
+  // ── RENAME ────────────────────────────────────────────────────────────────
+  var renamingGroup={layerId:null,groupId:null};
+
+  window.openRenameModal=function(layerId,groupId){
+    var layer=getLayer(layerId);if(!layer)return;
+    var grp=layer.groups.find(function(g){return g.id===groupId;});if(!grp)return;
+    renamingGroup={layerId:layerId,groupId:groupId};
+    document.getElementById('rename-group-name').value=grp.name;
+    document.getElementById('rename-group-id').value=grp.id;
+    document.getElementById('rename-modal-overlay').classList.add('open');
+    setTimeout(function(){document.getElementById('rename-group-name').focus();},50);
+  };
+  window.closeRenameModal=function(){document.getElementById('rename-modal-overlay').classList.remove('open');};
+  window.confirmRename=function(){
+    var name=document.getElementById('rename-group-name').value.trim();
+    var gid=document.getElementById('rename-group-id').value.trim();
+    if(!name||!gid)return;
+    var layer=getLayer(renamingGroup.layerId);if(!layer)return;
+    var grp=layer.groups.find(function(g){return g.id===renamingGroup.groupId;});if(!grp)return;
+    // Check ID uniqueness
+    var conflict=layer.groups.find(function(g){return g.id===gid&&g.id!==renamingGroup.groupId;});
+    if(conflict){showToast('overlap','Ya existe un grupo con ese ID');return;}
+    grp.name=name;grp.id=gid;
+    // Redraw label
+    drawGroupBorder(layer,grp,false);
+    closeRenameModal();renderLayers();
+  };
+  document.getElementById('rename-group-name').addEventListener('keydown',function(e){if(e.key==='Enter')confirmRename();if(e.key==='Escape')closeRenameModal();});
+  document.getElementById('rename-modal-overlay').addEventListener('click',function(e){if(e.target===document.getElementById('rename-modal-overlay'))closeRenameModal();});
+
+  // ── INSPECT ───────────────────────────────────────────────────────────────
+  function handleInspect(latlng){
+    var clickedIdx=h3.latLngToCell(latlng.lat,latlng.lng,BASE_RES);
+    var found=null;
+    state.layers.forEach(function(layer){
+      if(!layer.visible)return;
+      layer.groups.forEach(function(grp){
+        if(!grp.visible)return;
+        if(grp.cells.has(clickedIdx))found={layer:layer,group:grp,idx:clickedIdx};
+      });
+      if(!found&&layer.cells.has(clickedIdx))found={layer:layer,group:null,idx:clickedIdx};
+    });
+    showInspectPopup(found);
+  }
+
+  function showInspectPopup(found){
+    var popup=document.getElementById('inspect-popup');
+    var content=document.getElementById('ip-content');
+    if(!found){
+      content.innerHTML='<div class="ip-no-group">Sin cobertura en este punto</div>';
+    } else if(!found.group){
+      var center=h3.cellToLatLng(found.idx);
+      content.innerHTML='<div class="ip-group-name">Sin grupo</div>'+
+        '<div class="ip-layer-name">Capa: '+esc(found.layer.name)+'</div><hr class="ip-divider">'+
+        '<div class="ip-row"><span class="ip-label">Lat</span><span class="ip-val">'+center[0].toFixed(6)+'</span></div>'+
+        '<div class="ip-row"><span class="ip-label">Lng</span><span class="ip-val">'+center[1].toFixed(6)+'</span></div>'+
+        '<hr class="ip-divider"><div class="ip-id">'+found.idx+'</div>';
+    } else {
+      var grp=found.group;
+      var center=groupCentroid(grp);var bb=groupBoundingBox(grp);
+      var coordsObj={id:grp.id,name:grp.name,layer:found.layer.name,centroid:{lat:+center[0].toFixed(6),lng:+center[1].toFixed(6)},bbox:{north:+bb.maxLat.toFixed(6),south:+bb.minLat.toFixed(6),west:+bb.minLng.toFixed(6),east:+bb.maxLng.toFixed(6)},tokens:grp.cells.size,h3_cells:Array.from(grp.cells)};
+      window._lastInspectCoords=JSON.stringify(coordsObj,null,2);
+      window._lastInspectLayerId=found.layer.id;
+      window._lastInspectGroupId=grp.id;
+      content.innerHTML='<div class="ip-group-name">'+esc(grp.name)+'</div>'+
+        '<div class="ip-layer-name">Capa: '+esc(found.layer.name)+'</div><hr class="ip-divider">'+
+        '<div class="ip-row"><span class="ip-label">ID</span><span class="ip-val">'+esc(grp.id)+'</span></div>'+
+        '<div class="ip-row"><span class="ip-label">Tokens</span><span class="ip-val">'+grp.cells.size+'</span></div><hr class="ip-divider">'+
+        '<div class="ip-row"><span class="ip-label">Centroide lat</span><span class="ip-val">'+center[0].toFixed(6)+'</span></div>'+
+        '<div class="ip-row"><span class="ip-label">Centroide lng</span><span class="ip-val">'+center[1].toFixed(6)+'</span></div>'+
+        '<div class="ip-row"><span class="ip-label">Bbox norte</span><span class="ip-val">'+bb.maxLat.toFixed(6)+'</span></div>'+
+        '<div class="ip-row"><span class="ip-label">Bbox sur</span><span class="ip-val">'+bb.minLat.toFixed(6)+'</span></div>'+
+        '<div class="ip-row"><span class="ip-label">Bbox oeste</span><span class="ip-val">'+bb.minLng.toFixed(6)+'</span></div>'+
+        '<div class="ip-row"><span class="ip-label">Bbox este</span><span class="ip-val">'+bb.maxLng.toFixed(6)+'</span></div>'+
+        '<hr class="ip-divider">'+
+        '<div style="display:flex;gap:5px">'+
+          '<button onclick="copyCoords()" style="flex:1;padding:6px;background:none;border:1px solid var(--border2);border-radius:5px;font-size:10px;cursor:pointer;color:var(--text2);font-family:sans-serif">⎘ Copiar JSON</button>'+
+          '<button onclick="downloadGroupGeoJSON(window._lastInspectLayerId,window._lastInspectGroupId)" style="flex:1;padding:6px;background:none;border:1px solid #bbf7d0;border-radius:5px;font-size:10px;cursor:pointer;color:#15803d;font-family:sans-serif">↓ GeoJSON</button>'+
+        '</div>';
+    }
+    popup.classList.add('visible');
+  }
+  window.closeInspect=function(){document.getElementById('inspect-popup').classList.remove('visible');};
+
+  function groupCentroid(grp){
+    var latS=0,lngS=0,n=0;
+    grp.cells.forEach(function(idx){var c=h3.cellToLatLng(idx);latS+=c[0];lngS+=c[1];n++;});
+    return n>0?[latS/n,lngS/n]:[0,0];
+  }
+  function groupBoundingBox(grp){
+    var mnLat=90,mxLat=-90,mnLng=180,mxLng=-180;
+    grp.cells.forEach(function(idx){
+      h3.cellToBoundary(idx).forEach(function(p){
+        if(p[0]<mnLat)mnLat=p[0];if(p[0]>mxLat)mxLat=p[0];
+        if(p[1]<mnLng)mnLng=p[1];if(p[1]>mxLng)mxLng=p[1];
+      });
+    });
+    return{minLat:mnLat,maxLat:mxLat,minLng:mnLng,maxLng:mxLng};
+  }
+
+  // ── DRAW HELPERS ──────────────────────────────────────────────────────────
+  function makePoly(idx,color,fillOpacity,weight,strokeOpacity){
+    var boundary=h3.cellToBoundary(idx);
+    var latlngs=boundary.map(function(p){return[p[0],p[1]];});
+    return L.polygon(latlngs,{color:color,weight:weight||0.4,opacity:strokeOpacity||0.5,fillColor:color,fillOpacity:fillOpacity,interactive:false});
+  }
+
+  function drawLayerCell(idx,layer){
+    if(!layerPolygons[layer.id])layerPolygons[layer.id]={};
+    if(layerPolygons[layer.id][idx])return;
+    var poly=makePoly(idx,layer.color,0.18,0.3,0.3);
+    if(layer.visible)poly.addTo(map);
+    layerPolygons[layer.id][idx]=poly;
+    updateLayerCount(layer.id);
+  }
+
+  function eraseLayerCell(idx,layer){
+    if(layerPolygons[layer.id]&&layerPolygons[layer.id][idx]){
+      map.removeLayer(layerPolygons[layer.id][idx]);delete layerPolygons[layer.id][idx];
+    }
+    updateLayerCount(layer.id);
+  }
+
+  function drawSelCell(idx,color){
+    if(selPolygons[idx])map.removeLayer(selPolygons[idx]);
+    var poly=makePoly(idx,color,0.45,1.5,0.9);poly.addTo(map);selPolygons[idx]=poly;
+  }
+  function eraseSelCell(idx){if(selPolygons[idx]){map.removeLayer(selPolygons[idx]);delete selPolygons[idx];}}
+
+  // ── GROUP BORDERS ─────────────────────────────────────────────────────────
+  function drawGroupBorder(layer,grp,preview){
+    if(!groupBorders[layer.id])groupBorders[layer.id]={};
+    clearGroupBorder(layer.id,grp.id);
+    var cellSet=grp.cells;
+    var segments=[];
+    cellSet.forEach(function(idx){
+      var boundary=h3.cellToBoundary(idx);var n=boundary.length;
+      for(var i=0;i<n;i++){
+        var a=boundary[i],b=boundary[(i+1)%n];
+        var neighbors=h3.gridDisk(idx,1).filter(function(nb){return nb!==idx;});
+        var shared=false;
+        for(var j=0;j<neighbors.length;j++){
+          if(cellSet.has(neighbors[j])&&edgeShared(a,b,h3.cellToBoundary(neighbors[j]))){shared=true;break;}
+        }
+        if(!shared)segments.push([a,b]);
+      }
+    });
+    var color=preview?'#7c3aed':layer.color;
+    groupBorders[layer.id][grp.id]=[];
+    segments.forEach(function(seg){
+      var line=L.polyline(seg,{color:color,weight:preview?2:2.5,opacity:preview?0.7:0.9,interactive:false});
+      if(layer.visible&&grp.visible)line.addTo(map);
+      groupBorders[layer.id][grp.id].push(line);
+    });
+    // Label
+    if(cellSet.size>0){
+      var center=groupCentroid(grp);
+      var label=L.marker([center[0],center[1]],{
+        icon:L.divIcon({
+          className:'',
+          html:'<div style="background:'+color+';color:white;font-size:10px;font-weight:600;padding:2px 7px;border-radius:10px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.2);font-family:IBM Plex Sans,sans-serif;opacity:'+(preview?'0.8':'0.9')+'">'+(preview?'[preview] ':'')+esc(grp.name)+'</div>',
+          iconAnchor:[0,0]
+        }),interactive:false
+      });
+      if(layer.visible&&grp.visible)label.addTo(map);
+      groupBorders[layer.id][grp.id].push(label);
+    }
+  }
+
+  function edgeShared(a,b,nbBoundary){
+    var eps=0.00001;var n=nbBoundary.length;
+    for(var k=0;k<n;k++){
+      var c=nbBoundary[k],d=nbBoundary[(k+1)%n];
+      if((Math.abs(a[0]-c[0])<eps&&Math.abs(a[1]-c[1])<eps&&Math.abs(b[0]-d[0])<eps&&Math.abs(b[1]-d[1])<eps)||
+         (Math.abs(a[0]-d[0])<eps&&Math.abs(a[1]-d[1])<eps&&Math.abs(b[0]-c[0])<eps&&Math.abs(b[1]-c[1])<eps))return true;
+    }
+    return false;
+  }
+
+  function clearGroupBorder(layerId,gid){
+    if(groupBorders[layerId]&&groupBorders[layerId][gid]){
+      groupBorders[layerId][gid].forEach(function(l){map.removeLayer(l);});
+      groupBorders[layerId][gid]=[];
+    }
+  }
+
+  // ── MISC HELPERS ──────────────────────────────────────────────────────────
+  function isInAnyGroup(idx,layer){
+    for(var i=0;i<layer.groups.length;i++){if(layer.groups[i].cells.has(idx))return true;}
+    return false;
+  }
+  function removeFromGroups(idx,layer){
+    layer.groups.forEach(function(grp){
+      if(grp.cells.has(idx)){grp.cells.delete(idx);drawGroupBorder(layer,grp,false);}
+    });
+  }
+  function getLayer(id){return state.layers.find(function(l){return l.id===id;});}
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+  // ── TOASTS ────────────────────────────────────────────────────────────────
+  function showToast(type,msg){
+    var t=document.getElementById(type+'-toast');
+    t.textContent='⚠ '+msg;t.classList.add('visible');
+    clearTimeout(t._timer);t._timer=setTimeout(function(){t.classList.remove('visible');},3500);
+  }
+
+  // ── SELECTION (new group) ─────────────────────────────────────────────────
+  window.clearSelection=function(){
+    state.selection.forEach(function(idx){eraseSelCell(idx);});
+    state.selection.clear();updateSelBar();renderLayers();
+  };
+  function updateSelBar(){
+    var n=state.selection.size;
+    document.getElementById('sel-count').textContent=n;
+    var bar=document.getElementById('sel-bar');
+    if(n>0&&state.mode!=='edit')bar.classList.add('visible');else bar.classList.remove('visible');
+    var btn=document.getElementById('save-group-btn');if(btn)btn.disabled=n===0;
+  }
+
+  // ── LAYER CRUD ────────────────────────────────────────────────────────────
+  function addLayer(name,color){
+    var id='l'+Date.now();
+    var layer={id:id,name:name,color:color,cells:new Set(),groups:[],visible:true};
+    state.layers.push(layer);state.activeLayerId=id;layerPolygons[id]={};
+    renderLayers();updateStats();return layer;
+  }
+  window.deleteLayer=function(id){
+    var layer=getLayer(id);if(!layer)return;
+    layer.cells.forEach(function(idx){if(layerPolygons[id]&&layerPolygons[id][idx])map.removeLayer(layerPolygons[id][idx]);});
+    if(groupBorders[id])layer.groups.forEach(function(g){clearGroupBorder(id,g.id);});
+    delete layerPolygons[id];delete groupBorders[id];
+    state.layers=state.layers.filter(function(l){return l.id!==id;});
+    if(state.activeLayerId===id)state.activeLayerId=state.layers.length?state.layers[state.layers.length-1].id:null;
+    renderLayers();updateStats();
+  };
+  window.toggleLayerVis=function(id){
+    var layer=getLayer(id);if(!layer)return;layer.visible=!layer.visible;
+    if(layerPolygons[id])Object.values(layerPolygons[id]).forEach(function(p){if(layer.visible)p.addTo(map);else map.removeLayer(p);});
+    if(groupBorders[id])layer.groups.forEach(function(grp){
+      if(groupBorders[id][grp.id])groupBorders[id][grp.id].forEach(function(l){if(layer.visible&&grp.visible)l.addTo(map);else map.removeLayer(l);});
+    });
+    renderLayers();
+  };
+  window.toggleGroupVis=function(layerId,gid){
+    var layer=getLayer(layerId);if(!layer)return;
+    var grp=layer.groups.find(function(g){return g.id===gid;});if(!grp)return;
+    grp.visible=!grp.visible;
+    if(groupBorders[layerId]&&groupBorders[layerId][gid])groupBorders[layerId][gid].forEach(function(l){if(grp.visible&&layer.visible)l.addTo(map);else map.removeLayer(l);});
+    grp.cells.forEach(function(idx){if(layerPolygons[layerId]&&layerPolygons[layerId][idx]){if(grp.visible&&layer.visible)layerPolygons[layerId][idx].addTo(map);else map.removeLayer(layerPolygons[layerId][idx]);}});
+    renderLayers();
+  };
+  window.deleteGroup=function(layerId,gid){
+    var layer=getLayer(layerId);if(!layer)return;
+    clearGroupBorder(layerId,gid);
+    var grp=layer.groups.find(function(g){return g.id===gid;});
+    if(grp){
+      grp.cells.forEach(function(idx){
+        if(layerPolygons[layerId]&&layerPolygons[layerId][idx]){
+          map.removeLayer(layerPolygons[layerId][idx]);
+          var poly=makePoly(idx,layer.color,0.18,0.3,0.3);
+          if(layer.visible)poly.addTo(map);layerPolygons[layerId][idx]=poly;
+        }
+      });
+    }
+    layer.groups=layer.groups.filter(function(g){return g.id!==gid;});
+    renderLayers();updateStats();
+  };
+  window.setActiveLayer=function(id){
+    if(id!==state.activeLayerId)clearSelection();
+    state.activeLayerId=id;renderLayers();updateStats();
+  };
+  window.clearActiveLayer=function(){
+    var layer=getLayer(state.activeLayerId);if(!layer)return;
+    Array.from(layer.cells).forEach(function(idx){eraseLayerCell(idx,layer);});
+    layer.cells.clear();
+    if(groupBorders[layer.id])layer.groups.forEach(function(g){clearGroupBorder(layer.id,g.id);});
+    delete groupBorders[layer.id];layer.groups=[];
+    clearSelection();renderLayers();updateStats();
+  };
+
+  // ── RENDER SIDEBAR ────────────────────────────────────────────────────────
+  function renderLayers(){
+    var list=document.getElementById('layers-list');list.innerHTML='';
+    // Edit banner
+    var banner=document.getElementById('edit-banner');
+    if(!state.editingGroup)banner.className='';
+    state.layers.forEach(function(layer){
+      var isActive=layer.id===state.activeLayerId;
+      var block=document.createElement('div');block.className='layer-block';
+      var row=document.createElement('div');
+      row.className='layer-item'+(isActive?' active':'')+(!layer.visible?' hidden-layer':'');
+      row.style.setProperty('--layer-color',layer.color);
+      row.onclick=function(){setActiveLayer(layer.id);};
+      row.innerHTML=
+        '<div class="layer-swatch" style="background:'+layer.color+'"></div>'+
+        '<span class="layer-name">'+esc(layer.name)+'</span>'+
+        '<span class="vis-badge '+(layer.visible?'on':'off')+'" onclick="event.stopPropagation();toggleLayerVis(\''+layer.id+'\')">'+( layer.visible?'visible':'oculta')+'</span>'+
+        '<span class="layer-count" id="lc-'+layer.id+'">'+layer.cells.size+'</span>'+
+        '<div class="layer-actions"><button class="layer-btn danger" onclick="event.stopPropagation();deleteLayer(\''+layer.id+'\')">✕</button></div>';
+      block.appendChild(row);
+
+      if(layer.groups.length>0){
+        var ga=document.createElement('div');ga.className='groups-area';
+        layer.groups.forEach(function(grp){
+          var isEditing=state.editingGroup&&state.editingGroup.groupId===grp.id&&state.editingGroup.layerId===layer.id;
+          var gi=document.createElement('div');
+          gi.className='group-item'+(!grp.visible?' hidden-group':'')+(isEditing?' editing-group':'');
+          gi.innerHTML=
+            '<div class="group-dot" style="background:'+layer.color+'"></div>'+
+            '<span class="group-name" title="'+esc(grp.name)+'">'+esc(grp.name)+'</span>'+
+            '<span class="group-id">'+esc(grp.id)+'</span>'+
+            '<span class="group-cells">'+grp.cells.size+'</span>'+
+            '<button class="group-btn'+(isEditing?' edit-active':'')+'" title="Editar" onclick="startEditGroup(\''+layer.id+'\',\''+grp.id+'\')">✎</button>'+
+            '<button class="group-btn" title="Renombrar" onclick="openRenameModal(\''+layer.id+'\',\''+grp.id+'\')">↩</button>'+
+            '<button class="group-btn" title="'+(grp.visible?'Ocultar':'Mostrar')+'" onclick="toggleGroupVis(\''+layer.id+'\',\''+grp.id+'\')">'+( grp.visible?'◉':'○')+'</button>'+
+            '<button class="group-btn danger" title="Eliminar" onclick="deleteGroup(\''+layer.id+'\',\''+grp.id+'\')">✕</button>';
+          ga.appendChild(gi);
+        });
+        block.appendChild(ga);
+      }
+
+      if(isActive&&!state.editingGroup){
+        var sgBtn=document.createElement('button');sgBtn.id='save-group-btn';
+        sgBtn.disabled=state.selection.size===0;
+        var n=state.selection.size;
+        sgBtn.textContent=n>0?'+ Guardar '+n+' tokens como grupo':'+ Guardar selección como grupo';
+        sgBtn.onclick=function(){openGroupModal();};
+        block.appendChild(sgBtn);
+      }
+      list.appendChild(block);
+    });
+  }
+
+  function updateLayerCount(id){
+    var el=document.getElementById('lc-'+id);var l=getLayer(id);
+    if(el&&l)el.textContent=l.cells.size;
+  }
+  function updateStats(){
+    var total=state.layers.reduce(function(s,l){return s+l.cells.size;},0);
+    var groups=state.layers.reduce(function(s,l){return s+l.groups.length;},0);
+    document.getElementById('stat-total').textContent=total;
+    document.getElementById('stat-groups').textContent=groups;
+    var a=getLayer(state.activeLayerId);
+    document.getElementById('stat-layer').textContent=a?a.name:'—';
+    document.getElementById('stat-brush').textContent='res '+state.brushRes;
+  }
+
+  // ── MODE / BRUSH ──────────────────────────────────────────────────────────
+  window.setMode=function(mode){
+    if(mode!=='edit'&&state.editingGroup)return; // force exit via buttons
+    state.mode=mode;
+    ['paint','erase','edit','inspect'].forEach(function(m){
+      document.getElementById('mode-'+m).className='mode-btn'+(mode===m?' active-'+m:'');
+    });
+    mapEl.className='mode-'+mode;
+    if(mode!=='inspect')closeInspect();
+    if(mode!=='edit'){
+      document.getElementById('edit-bar').classList.remove('visible');
+      document.getElementById('edit-banner').className='';
+    }
+    updateSelBar();
+  };
+  window.onBrushChange=function(val){
+    state.brushRes=parseInt(val);var m=BRUSH_META[state.brushRes];
+    document.getElementById('brush-display').textContent=state.brushRes;
+    document.getElementById('brush-label').textContent=m.label;
+    document.getElementById('brush-detail').textContent=m.detail;
+    document.getElementById('stat-brush').textContent='res '+state.brushRes;
+  };
+
+  // ── MODALS ────────────────────────────────────────────────────────────────
+  var selectedColor=LAYER_COLORS[0];
+  window.openLayerModal=function(){
+    var grid=document.getElementById('color-grid');grid.innerHTML='';
+    var used=state.layers.map(function(l){return l.color;});
+    var avail=LAYER_COLORS.filter(function(c){return used.indexOf(c)===-1;});
+    selectedColor=avail.length?avail[0]:LAYER_COLORS[0];
+    LAYER_COLORS.forEach(function(c){
+      var btn=document.createElement('div');
+      btn.className='color-opt'+(c===selectedColor?' selected':'');btn.style.background=c;
+      btn.onclick=function(){document.querySelectorAll('.color-opt').forEach(function(el){el.classList.remove('selected');});btn.classList.add('selected');selectedColor=c;};
+      grid.appendChild(btn);
+    });
+    document.getElementById('new-layer-name').value='';
+    document.getElementById('layer-modal-overlay').classList.add('open');
+    setTimeout(function(){document.getElementById('new-layer-name').focus();},50);
+  };
+  window.closeLayerModal=function(){document.getElementById('layer-modal-overlay').classList.remove('open');};
+  window.confirmNewLayer=function(){
+    var name=document.getElementById('new-layer-name').value.trim();if(!name)return;
+    addLayer(name,selectedColor);closeLayerModal();
+  };
+  document.getElementById('new-layer-name').addEventListener('keydown',function(e){if(e.key==='Enter')confirmNewLayer();if(e.key==='Escape')closeLayerModal();});
+  document.getElementById('layer-modal-overlay').addEventListener('click',function(e){if(e.target===document.getElementById('layer-modal-overlay'))closeLayerModal();});
+
+  window.openGroupModal=function(){
+    if(state.selection.size===0)return;
+    var layer=getLayer(state.activeLayerId);
+    var nextNum=layer?layer.groups.length+1:1;
+    var prefix=layer?layer.name.substring(0,3).toUpperCase():'GRP';
+    document.getElementById('new-group-name').value='';
+    document.getElementById('new-group-id').value=prefix+'-'+String(nextNum).padStart(3,'0');
+    document.getElementById('group-cell-count').textContent=state.selection.size+' tokens · contiguidad se verificará al guardar';
+    document.getElementById('group-modal-overlay').classList.add('open');
+    setTimeout(function(){document.getElementById('new-group-name').focus();},50);
+  };
+  window.closeGroupModal=function(){document.getElementById('group-modal-overlay').classList.remove('open');};
+  window.confirmSaveGroup=function(){
+    var name=document.getElementById('new-group-name').value.trim();
+    var gid=document.getElementById('new-group-id').value.trim();
+    if(!name||!gid)return;
+    if(saveGroup(name,gid))closeGroupModal();
+  };
+  document.getElementById('new-group-name').addEventListener('keydown',function(e){if(e.key==='Enter')confirmSaveGroup();if(e.key==='Escape')closeGroupModal();});
+  document.getElementById('group-modal-overlay').addEventListener('click',function(e){if(e.target===document.getElementById('group-modal-overlay'))closeGroupModal();});
+
+  // ── EXPORT ───────────────────────────────────────────────────────────────
+  function buildExportData(){
+    return state.layers.map(function(layer){
+      return {
+        id: layer.id,
+        name: layer.name,
+        color: layer.color,
+        visible: layer.visible,
+        groups: layer.groups.map(function(grp){
+          var center=groupCentroid(grp);
+          var bb=groupBoundingBox(grp);
+          return {
+            id: grp.id,
+            name: grp.name,
+            visible: grp.visible,
+            tokens: grp.cells.size,
+            centroid: {lat:+center[0].toFixed(6), lng:+center[1].toFixed(6)},
+            bbox: {north:+bb.maxLat.toFixed(6), south:+bb.minLat.toFixed(6), west:+bb.minLng.toFixed(6), east:+bb.maxLng.toFixed(6)},
+            h3_resolution: BASE_RES,
+            h3_cells: Array.from(grp.cells)
+          };
+        }),
+        ungrouped_cells: Array.from(layer.cells).filter(function(idx){
+          return !layer.groups.some(function(g){return g.cells.has(idx);});
+        })
+      };
+    });
+  }
+
+  function buildGeoJSON(){
+    var features=[];
+    state.layers.forEach(function(layer){
+      layer.groups.forEach(function(grp){
+        var center=groupCentroid(grp);
+        var bb=groupBoundingBox(grp);
+        // Build polygon from H3 cells outline
+        var cellPolygons=[];
+        grp.cells.forEach(function(idx){
+          var boundary=h3.cellToBoundary(idx);
+          // GeoJSON coords: [lng, lat], closed ring
+          var ring=boundary.map(function(p){return[+p[1].toFixed(7),+p[0].toFixed(7)];});
+          ring.push(ring[0]);
+          cellPolygons.push({type:'Feature',properties:{h3index:idx},geometry:{type:'Polygon',coordinates:[ring]}});
+        });
+        features.push({
+          type:'Feature',
+          properties:{
+            group_id: grp.id,
+            group_name: grp.name,
+            layer_name: layer.name,
+            layer_color: layer.color,
+            tokens: grp.cells.size,
+            centroid_lat: +center[0].toFixed(6),
+            centroid_lng: +center[1].toFixed(6),
+            bbox_north: +bb.maxLat.toFixed(6),
+            bbox_south: +bb.minLat.toFixed(6),
+            bbox_west: +bb.minLng.toFixed(6),
+            bbox_east: +bb.maxLng.toFixed(6),
+            h3_resolution: BASE_RES,
+            h3_cells: Array.from(grp.cells)
+          },
+          geometry:{
+            type:'Point',
+            coordinates:[+center[1].toFixed(6),+center[0].toFixed(6)]
+          }
+        });
+        // Also add individual cell features
+        cellPolygons.forEach(function(f){
+          f.properties.group_id=grp.id;
+          f.properties.group_name=grp.name;
+          f.properties.layer_name=layer.name;
+          features.push(f);
+        });
+      });
+    });
+    return {type:'FeatureCollection',features:features};
+  }
+
+  function downloadFile(content, filename, mime){
+    var blob=new Blob([content],{type:mime});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download=filename;
+    document.body.appendChild(a);a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},100);
+  }
+
+  window.exportJSON=function(){
+    if(!state.layers.some(function(l){return l.groups.length>0;})){
+      showToast('overlap','No hay grupos guardados para exportar');return;
+    }
+    var data={exported_at:new Date().toISOString(),base_resolution:BASE_RES,layers:buildExportData()};
+    downloadFile(JSON.stringify(data,null,2),'rappi_geolayers.json','application/json');
+    showToast('success','✓ JSON descargado');
+  };
+
+  window.exportGeoJSON=function(){
+    if(!state.layers.some(function(l){return l.groups.length>0;})){
+      showToast('overlap','No hay grupos guardados para exportar');return;
+    }
+    downloadFile(JSON.stringify(buildGeoJSON(),null,2),'rappi_geolayers.geojson','application/geo+json');
+    showToast('success','✓ GeoJSON descargado');
+  };
+
+  window.downloadGroupGeoJSON=function(layerId,groupId){
+    var layer=getLayer(layerId);if(!layer)return;
+    var grp=layer.groups.find(function(g){return g.id===groupId;});if(!grp)return;
+    var center=groupCentroid(grp);var bb=groupBoundingBox(grp);
+    var features=[];
+    grp.cells.forEach(function(idx){
+      var boundary=h3.cellToBoundary(idx);
+      var ring=boundary.map(function(p){return[+p[1].toFixed(7),+p[0].toFixed(7)];});
+      ring.push(ring[0]);
+      features.push({type:'Feature',properties:{h3index:idx,group_id:grp.id,group_name:grp.name,layer_name:layer.name},geometry:{type:'Polygon',coordinates:[ring]}});
+    });
+    var fc={type:'FeatureCollection',properties:{group_id:grp.id,group_name:grp.name,layer_name:layer.name,centroid_lat:+center[0].toFixed(6),centroid_lng:+center[1].toFixed(6),bbox_north:+bb.maxLat.toFixed(6),bbox_south:+bb.minLat.toFixed(6),bbox_west:+bb.minLng.toFixed(6),bbox_east:+bb.maxLng.toFixed(6),tokens:grp.cells.size},features:features};
+    downloadFile(JSON.stringify(fc,null,2),grp.id+'_'+grp.name.replace(/\s+/g,'_')+'.geojson','application/geo+json');
+  };
+
+  window.copyCoords=function(){
+    if(!window._lastInspectCoords){return;}
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(window._lastInspectCoords).then(function(){
+        showToast('success','✓ Coordenadas copiadas');
+      });
+    } else {
+      var ta=document.createElement('textarea');ta.value=window._lastInspectCoords;
+      document.body.appendChild(ta);ta.select();document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('success','✓ Coordenadas copiadas');
+    }
+  };
+
+  // ── INIT ──────────────────────────────────────────────────────────────────
+  addLayer('Turbo','#d45f5f');
+  addLayer('Earnings','#5580c8');
+  setActiveLayer(state.layers[0].id);
+  updateStats();
+};
+</script>
+</body>
+</html>
