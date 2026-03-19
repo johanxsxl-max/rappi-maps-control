@@ -384,6 +384,7 @@ window.startApp=function(){
     cells.forEach(function(idx){
       if(state.mode==='paint'){
         if(isInAnyGroup(idx,layer)){blocked++;return;}
+        if(!layer.isMaster&&!isInMaster(idx)){blocked++;return;}
         if(!layer.cells.has(idx)){layer.cells.add(idx);drawLayerCell(idx,layer);}
         if(!state.selection.has(idx)){state.selection.add(idx);drawSelCell(idx,layer.color);}
       } else {
@@ -393,8 +394,11 @@ window.startApp=function(){
       }
     });
     if(blocked>0){
+      var activeL=getLayer(state.activeLayerId);
       var msg=state.mode==='paint'
-        ? blocked+' token'+(blocked>1?'s ya pertenecen':' ya pertenece')+' a un grupo de esta capa — usa ✎ Editar para modificarlos'
+        ? (activeL&&!activeL.isMaster&&getMasterLayer()
+            ? blocked+' token'+(blocked>1?'s están fuera':'  está fuera')+' de la cobertura — pinta primero en la capa maestra'
+            : blocked+' token'+(blocked>1?'s ya pertenecen':' ya pertenece')+' a un grupo de esta capa — usa ✎ Editar para modificarlos')
         : blocked+' token'+(blocked>1?'s pertenecen':' pertenece')+' a un grupo guardado — usa ✎ Editar para modificarlos';
       showToast('overlap',msg);
     }
@@ -415,6 +419,7 @@ window.startApp=function(){
       }
       if(!inGroup){
         // ADD: token not in group yet — check it belongs to layer and not another group
+        if(!layer.isMaster&&!isInMaster(idx)){showToast('overlap','Token fuera de la cobertura maestra');return;}
         if(!layer.cells.has(idx)){layer.cells.add(idx);drawLayerCell(idx,layer);}
         // Check other groups don't own it
         var otherOwner=false;
@@ -824,14 +829,22 @@ window.startApp=function(){
   }
 
   // ── LAYER CRUD ────────────────────────────────────────────────────────────
-  function addLayer(name,color){
+  function addLayer(name,color,isMaster){
     var id='l'+(++_idCounter);
-    var layer={id:id,name:name,color:color,cells:new Set(),groups:[],visible:true};
+    var layer={id:id,name:name,color:color,cells:new Set(),groups:[],visible:true,isMaster:!!isMaster};
     state.layers.push(layer);state.activeLayerId=id;layerPolygons[id]={};
     renderLayers();updateStats();return layer;
   }
+  function getMasterLayer(){
+    return state.layers.find(function(l){return l.isMaster;});
+  }
+  function isInMaster(idx){
+    var master=getMasterLayer();
+    return !master||master.cells.has(idx);
+  }
   window.deleteLayer=function(id){
     var layer=getLayer(id);if(!layer)return;
+    if(layer.isMaster){showToast('overlap','La capa de cobertura no se puede eliminar');return;}
     layer.cells.forEach(function(idx){if(layerPolygons[id]&&layerPolygons[id][idx])map.removeLayer(layerPolygons[id][idx]);});
     if(groupBorders[id])layer.groups.forEach(function(g){clearGroupBorder(id,g.id);});
     delete layerPolygons[id];delete groupBorders[id];
@@ -900,9 +913,10 @@ window.startApp=function(){
       row.innerHTML=
         '<div class="layer-swatch" style="background:'+layer.color+'"></div>'+
         '<span class="layer-name">'+esc(layer.name)+'</span>'+
+        (layer.isMaster?'<span style="font-size:9px;font-weight:600;padding:2px 5px;border-radius:3px;background:#fef9c3;color:#854d0e;border:1px solid #fde047;flex-shrink:0;margin-right:2px">cobertura</span>':'')+
         '<span class="vis-badge '+(layer.visible?'on':'off')+'" onclick="event.stopPropagation();toggleLayerVis(\''+layer.id+'\')">'+( layer.visible?'visible':'oculta')+'</span>'+
         '<span class="layer-count" id="lc-'+layer.id+'">'+layer.cells.size+'</span>'+
-        '<div class="layer-actions"><button class="layer-btn danger" onclick="event.stopPropagation();deleteLayer(\''+layer.id+'\')">✕</button></div>';
+        '<div class="layer-actions">'+(layer.isMaster?'':'<button class="layer-btn danger" onclick="event.stopPropagation();deleteLayer(\''+layer.id+'\')" title="Eliminar capa">✕</button>')+'</div>';
       block.appendChild(row);
 
       if(layer.groups.length>0){
@@ -1165,7 +1179,7 @@ window.startApp=function(){
     try {
       var data = state.layers.map(function(layer){
         return {
-          id: layer.id, name: layer.name, color: layer.color, visible: layer.visible,
+          id: layer.id, name: layer.name, color: layer.color, visible: layer.visible, isMaster: layer.isMaster,
           activeLayerId: state.activeLayerId,
           cells: Array.from(layer.cells),
           groups: layer.groups.map(function(grp){
@@ -1199,7 +1213,7 @@ window.startApp=function(){
       // Restore layers
       saved.layers.forEach(function(ld){
         var layer = { id:ld.id, name:ld.name, color:ld.color, visible:ld.visible,
-                      cells: new Set(ld.cells), groups: [], };
+                      cells: new Set(ld.cells), groups: [], isMaster:!!ld.isMaster };
         layerPolygons[layer.id] = {};
         state.layers.push(layer);
 
@@ -1244,6 +1258,7 @@ window.startApp=function(){
   var restored = loadFromStorage();
   if (!restored) {
     // First time — load demo layers
+    addLayer('Cobertura','#6b7280',true);
     addLayer('Turbo','#d45f5f');
     addLayer('Earnings','#5580c8');
     setActiveLayer(state.layers[0].id);
