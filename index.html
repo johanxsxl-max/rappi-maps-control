@@ -330,6 +330,7 @@ window.startApp=function(){
   document.getElementById('app').style.display='flex';
 
   var BASE_RES=9;
+  var _idCounter=Date.now();
   var BRUSH_META={
     5:{label:'Pincel XL',     detail:'~1,680 tokens por click'},
     6:{label:'Pincel grande', detail:'~240 tokens por click'},
@@ -824,7 +825,7 @@ window.startApp=function(){
 
   // ── LAYER CRUD ────────────────────────────────────────────────────────────
   function addLayer(name,color){
-    var id='l'+Date.now();
+    var id='l'+(++_idCounter);
     var layer={id:id,name:name,color:color,cells:new Set(),groups:[],visible:true};
     state.layers.push(layer);state.activeLayerId=id;layerPolygons[id]={};
     renderLayers();updateStats();return layer;
@@ -948,7 +949,7 @@ window.startApp=function(){
     var a=getLayer(state.activeLayerId);
     document.getElementById('stat-layer').textContent=a?a.name:'—';
     document.getElementById('stat-brush').textContent='res '+state.brushRes;
-    saveToStorage();
+    debouncedSave();
   }
 
   // ── MODE / BRUSH ──────────────────────────────────────────────────────────
@@ -1154,6 +1155,11 @@ window.startApp=function(){
 
   // ── PERSISTENCE ───────────────────────────────────────────────────────────
   var STORAGE_KEY = 'rappi_geolayers_v1';
+  var _saveTimer = null;
+  function debouncedSave(){
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(saveToStorage, 300);
+  }
 
   function saveToStorage(){
     try {
@@ -1217,6 +1223,11 @@ window.startApp=function(){
 
       // Restore active layer
       state.activeLayerId = saved.activeLayerId || state.layers[0].id;
+      // Bump counter above any restored numeric IDs to avoid collisions
+      state.layers.forEach(function(l){
+        var n=parseInt(l.id.replace('l',''));
+        if(!isNaN(n)&&n>_idCounter)_idCounter=n;
+      });
       return true;
     } catch(e) {
       console.warn('Error restoring saved state:', e);
