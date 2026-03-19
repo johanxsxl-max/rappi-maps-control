@@ -233,6 +233,7 @@
         <button onclick="exportGeoJSON()" style="flex:1;padding:7px;background:none;border:1px solid #bbf7d0;border-radius:6px;color:#15803d;font-size:11px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif">↓ GeoJSON</button>
       </div>
       <button class="clear-btn" onclick="clearActiveLayer()">Limpiar capa activa</button>
+      <button class="clear-btn" style="margin-top:6px;border-color:#d0d0cc;color:var(--text3)" onclick="if(confirm('¿Borrar todos los datos guardados y empezar de cero?'))clearStorage()">Resetear sesión</button>
     </div>
   </div>
   <div id="map" class="mode-paint"></div>
@@ -947,6 +948,7 @@ window.startApp=function(){
     var a=getLayer(state.activeLayerId);
     document.getElementById('stat-layer').textContent=a?a.name:'—';
     document.getElementById('stat-brush').textContent='res '+state.brushRes;
+    saveToStorage();
   }
 
   // ── MODE / BRUSH ──────────────────────────────────────────────────────────
@@ -1150,10 +1152,95 @@ window.startApp=function(){
     }
   };
 
+  // ── PERSISTENCE ───────────────────────────────────────────────────────────
+  var STORAGE_KEY = 'rappi_geolayers_v1';
+
+  function saveToStorage(){
+    try {
+      var data = state.layers.map(function(layer){
+        return {
+          id: layer.id, name: layer.name, color: layer.color, visible: layer.visible,
+          activeLayerId: state.activeLayerId,
+          cells: Array.from(layer.cells),
+          groups: layer.groups.map(function(grp){
+            return { id:grp.id, name:grp.name, visible:grp.visible, cells:Array.from(grp.cells) };
+          })
+        };
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        version: 1,
+        activeLayerId: state.activeLayerId,
+        brushRes: state.brushRes,
+        layers: data
+      }));
+    } catch(e) { /* storage full or unavailable */ }
+  }
+
+  function loadFromStorage(){
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      var saved = JSON.parse(raw);
+      if (!saved || !saved.layers || saved.layers.length === 0) return false;
+
+      // Restore brush
+      if (saved.brushRes) {
+        state.brushRes = saved.brushRes;
+        document.getElementById('brush-slider').value = saved.brushRes;
+        onBrushChange(saved.brushRes);
+      }
+
+      // Restore layers
+      saved.layers.forEach(function(ld){
+        var layer = { id:ld.id, name:ld.name, color:ld.color, visible:ld.visible,
+                      cells: new Set(ld.cells), groups: [], };
+        layerPolygons[layer.id] = {};
+        state.layers.push(layer);
+
+        // Draw base cells
+        ld.cells.forEach(function(idx){
+          // Check if it belongs to any group (draw with higher opacity if so)
+          var inGroup = ld.groups.some(function(g){ return g.cells.indexOf(idx) !== -1; });
+          var poly = makePoly(idx, layer.color, inGroup ? 0.28 : 0.18, inGroup ? 0.4 : 0.3, inGroup ? 0.4 : 0.3);
+          if (layer.visible) poly.addTo(map);
+          layerPolygons[layer.id][idx] = poly;
+        });
+
+        // Restore groups
+        ld.groups.forEach(function(gd){
+          var grp = { id:gd.id, name:gd.name, visible:gd.visible, cells: new Set(gd.cells) };
+          layer.groups.push(grp);
+          if (!groupBorders[layer.id]) groupBorders[layer.id] = {};
+          drawGroupBorder(layer, grp, false);
+        });
+      });
+
+      // Restore active layer
+      state.activeLayerId = saved.activeLayerId || state.layers[0].id;
+      return true;
+    } catch(e) {
+      console.warn('Error restoring saved state:', e);
+      return false;
+    }
+  }
+
+  window.clearStorage = function(){
+    localStorage.removeItem(STORAGE_KEY);
+    showToast('success','✓ Datos borrados — recarga la página');
+  };
+
   // ── INIT ──────────────────────────────────────────────────────────────────
-  addLayer('Turbo','#d45f5f');
-  addLayer('Earnings','#5580c8');
-  setActiveLayer(state.layers[0].id);
+  var restored = loadFromStorage();
+  if (!restored) {
+    // First time — load demo layers
+    addLayer('Turbo','#d45f5f');
+    addLayer('Earnings','#5580c8');
+    setActiveLayer(state.layers[0].id);
+  } else {
+    renderLayers();
+    setActiveLayer(state.activeLayerId);
+    showToast('success','✓ Sesión restaurada');
+  }
   updateStats();
 };
 </script>
